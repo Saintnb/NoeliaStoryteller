@@ -1,22 +1,14 @@
 ﻿using Microsoft.IdentityModel.Tokens;
-using NoeliaStorytellerAPI.Data;
-using NoeliaStorytellerAPI.Models;
 using NoeliaStorytellerAPI.Services.Auth;
 using System;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace NoeliaStorytellerAPI.Services
 {
     public class AuthService : IAuthService
-    {
-        private readonly NoeliaStorytellerAPIContext _context;
-
-     
+    {         
 
         public string GenerateToken(DateTime date, string user, TimeSpan validDate)
         {

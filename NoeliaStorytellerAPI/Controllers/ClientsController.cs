@@ -18,14 +18,14 @@ namespace NoeliaStorytellerAPI.Controllers
     public class ClientsController : ControllerBase
     {
         private readonly NoeliaStorytellerAPIContext _context;
-        private readonly IClientService _clientService;
+        //private readonly IClientService _clientService;
         private readonly ILogger<ClientsController> logger;
         private readonly IAuthService _authService;
-        public ClientsController(NoeliaStorytellerAPIContext context, IClientService clientService, 
+        public ClientsController(NoeliaStorytellerAPIContext context,  
             ILogger<ClientsController> logger, IAuthService authService)
         {
             this._context = context;
-            this._clientService = clientService;
+            //this._clientService = clientService;
             this.logger = logger;
             this._authService = authService;
         }
@@ -53,39 +53,7 @@ namespace NoeliaStorytellerAPI.Controllers
             
         }
 
-        // PUT: api/Clients/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{email}")]
-        public async Task<IActionResult> PutClient(string email, Client client)
-        {
-            if (email != client.Email)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(client).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                if (!ClientExists(email))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                                
-                logger.LogError($"Something went wrong inside GetClient action: {ex.Message}");
-                return StatusCode(500, "Internal server error");
-            
-                }
-            }
-
-            return NoContent();
-        }
+       
 
         // POST: api/Clients
         [HttpPost]

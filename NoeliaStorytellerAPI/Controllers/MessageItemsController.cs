@@ -15,7 +15,7 @@ using NoeliaStorytellerAPI.Services.Messages;
 
 namespace NoeliaStorytellerAPI.Controllers
 {
-    [Authorize]
+    //[Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class MessageItemsController : ControllerBase
@@ -31,16 +31,54 @@ namespace NoeliaStorytellerAPI.Controllers
             this.logger = logger;
         }
 
-        // GET: api/MessageItems
+ 
         [HttpGet]
         public async Task<IActionResult> GetAllMessages()
         {
             logger.LogInformation("Getting all Messages");
            List<MessageItem> messages = await _context.MessageItem.ToListAsync();
             List<MessageItemDTO> mdto = new();
-           mdto = _mservice.MapMessages(messages);
+            messages.ForEach(async x =>
+            {
+                Client c = await _context.Client.FindAsync(x.Email);
+                MessageItemDTO m = new MessageItemDTO(x, c);
+                mdto.Add(m);
+            });
 
             return Ok(mdto);
+        }
+       
+        [HttpPost("AllMessageByEmail")]
+        public async Task<IActionResult> GetClientsAllMessages(Client client)
+        {
+            //logger.LogInformation("Getting all Messages");
+            try
+            {
+                var cli = _context.Client.Any(e => e.Email == client.Email);
+                if (!cli)
+                {
+                    return StatusCode(401, "Unauthorized");
+                }
+                List<MessageItem> messages = await _context.MessageItem.ToListAsync();
+                if (messages.Count < 0)
+                {
+                    return NotFound();
+                }
+                List<MessageItemDTO> mdto = new();
+                messages.ForEach(async x =>
+                {
+                    Client c = await _context.Client.FindAsync(x.Email);
+                    MessageItemDTO m = new MessageItemDTO(x, c);
+                    mdto.Add(m);
+                });
+
+                return Ok(mdto);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Something went wrong inside GetClientsAllMessages action: {ex.Message}");
+                return StatusCode(500, "Internal server error");
+            }
         }
 
         // GET: api/MessageItems/5
@@ -67,12 +105,12 @@ namespace NoeliaStorytellerAPI.Controllers
             
         }
 
-        [HttpGet("/byEmail/{email}")]
+        [HttpGet("byEmail/{email}")]
         public async Task<IActionResult> GetMessageByEmail(string email)
         {
             try
             {
-                logger.LogInformation("Getting messages by email", email);
+                //logger.LogInformation("Getting messages by email", email);
                 List<MessageItem> messages = await _context.MessageItem.Where(p => p.Email.Contains(email)).ToListAsync();
 
                 if (messages == null)
@@ -80,7 +118,12 @@ namespace NoeliaStorytellerAPI.Controllers
                     return NotFound();
                 }
                 List<MessageItemDTO> mdto = new();
-                mdto = _mservice.MapMessages(messages);
+                messages.ForEach(async x =>
+                {
+                    Client c = await _context.Client.FindAsync(x.Email);
+                    MessageItemDTO m = new MessageItemDTO(x, c);
+                    mdto.Add(m);
+                });
 
                 return Ok(mdto);
             }
@@ -91,64 +134,108 @@ namespace NoeliaStorytellerAPI.Controllers
             }
             
         }
-
-        // PUT: api/MessageItems/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+     
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateMessage(long id, MessageItem messageItem)
+        public async Task<IActionResult> UpdateMessage(long id, MessageOperationsDTO messageDTO)
         {
-            if (id != messageItem.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(messageItem).State = EntityState.Modified;
-
             try
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                if (!MessageItemExists(id))
+                //logger.LogInformation("Update Message", messageDTO);
+                if (id != messageDTO.Id)
                 {
-                    return NotFound();
+                    return BadRequest();
                 }
-                else
+                var messageItem = _context.MessageItem.Find(id);
+                if (messageItem.Email != messageDTO.client.Email)
                 {
-                    logger.LogError($"Something went wrong inside UpdateMessage action: {ex.Message}");
-                    return StatusCode(500, "Internal server error");
+                    return StatusCode(401, "You have not permission to modify this message.");
                 }
-            }
+                messageItem.Message = messageDTO.Message;
 
-            return NoContent();
+                _context.Entry(messageItem).State = EntityState.Modified;
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    if (!MessageItemExists(id))
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        logger.LogError($"Something went wrong inside UpdateMessage action: {ex.Message}");
+                        return StatusCode(500, "Internal server error");
+                    }
+                }
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Something went wrong inside UpdateMessage action: {ex.Message}");
+                return StatusCode(500, "Internal server error");
+            }
+            
         }
 
-        // POST: api/MessageItems
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<MessageItem>> CreateMessage(MessageItem messageItem)
+        public async Task<ActionResult<MessageItem>> CreateMessage(MessageOperationsDTO message)
         {
-            _context.MessageItem.Add(messageItem);
-            await _context.SaveChangesAsync();
+            try
+            {
+                //logger.LogInformation("Create Message", message);
 
-            return CreatedAtAction("GetMessageItem", new { id = messageItem.Id }, messageItem);
+                var cli = _context.Client.Any(e => e.Email == message.client.Email);
+                if (!cli)
+                {
+                    return StatusCode(401, "Unauthorized, User is not registered");
+                }
+                MessageItem messageItem = new();
+                messageItem.Email = message.client.Email;
+                messageItem.Message = message.Message;
+                messageItem.CreationDate = System.DateTime.Now;
+                _context.MessageItem.Add(messageItem);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction("GetMessageItem", new { id = messageItem.Id }, messageItem);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Something went wrong inside CreateMessage action: {ex.Message}");
+                return StatusCode(500, "Internal server error");
+            }
         }
 
         // DELETE: api/MessageItems/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteMessage(long id)
+        public async Task<IActionResult> DeleteMessage(long id, Client client)
         {
-            var messageItem = await _context.MessageItem.FindAsync(id);
-            if (messageItem == null)
+            try
             {
-                return NotFound();
+                //logger.LogInformation("Delete Message: ID " + id, client);
+
+                var messageItem = await _context.MessageItem.FindAsync(id);
+                if (messageItem == null)
+                {
+                    return NotFound();
+                }
+                if(messageItem.Email != client.Email)
+                {
+                    return StatusCode(401, "You have not permission to detelet this message.");
+                }
+                _context.MessageItem.Remove(messageItem);
+                await _context.SaveChangesAsync();
+
+                return Ok();
             }
-
-            _context.MessageItem.Remove(messageItem);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                logger.LogError($"Something went wrong inside DeleteMessage action: {ex.Message}");
+                return StatusCode(500, "Internal server error");
+            }
         }
 
         private bool MessageItemExists(long id)
